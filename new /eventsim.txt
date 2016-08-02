@@ -1,0 +1,89 @@
+50.59.42.104
+
+/usr/bin/kafka-topics --zookeeper  node2.yotabitesllc.com:2181 --list
+
+/usr/bin/kafka-topics --zookeeper node2.yotabitesllc.com:2181 --create --topic event_t1 --partitions 1 --replication-factor 1
+
+/usr/bin/kafka-console-consumer --zookeeper node2.yotabitesllc.com:2181 --topic event_t1
+
+/usr/bin/kafka-console-producer --broker-list node2.yotabitesllc.com:9092 --topic test_1
+
+cd /home/ashwin/Eventsim/eventsim-master
+
+bin/eventsim -c "examples/example-config.json" --from 10 --nusers 100 --growth-rate 0.01 --kafkaBrokerList node2.yotabitesllc.com:9092 --kafkaTopic test_1
+
+
+bin/eventsim -c "examples/example-config.json" --from 10 --nusers 10 --growth-rate 0.01 --kafkaBrokerList node2.yotabitesllc.com:9092 --kafkaTopic event_t1
+
+
+
+eventsim.sources  = source1
+eventsim.channels = channel1
+eventsim.sinks = sink1
+
+ eventsim.sources.source1.type = org.apache.flume.source.kafka.KafkaSource
+ eventsim.sources.source1.zookeeperConnect = node1.yotabitesllc.com:2181
+ eventsim.sources.source1.topic = test_1
+ eventsim.sources.source1.groupId = flume
+ eventsim.sources.source1.channels = channel1
+ eventsim.sources.source1.interceptors = i1
+ eventsim.sources.source1.interceptors.i1.type = timestamp
+ eventsim.sources.source1.kafka.consumer.timeout.ms = 100
+
+ eventsim.channels.channel1.type = memory
+ eventsim.channels.channel1.capacity = 100000
+ eventsim.channels.channel1.transactionCapacity = 1000
+
+ eventsim.sinks.sink1.type = hdfs
+ eventsim.sinks.sink1.hdfs.path =/user/eventsim/data/%{topic}/flume_%y-%m-%d
+ eventsim.sinks.sink1.hdfs.rollInterval = 5
+ eventsim.sinks.sink1.hdfs.rollSize = 0
+ eventsim.sinks.sink1.hdfs.rollCount = 10
+ eventsim.sinks.sink1.hdfs.fileType = DataStream
+
+eventsim.sinks.sink1.channel = channel1
+
+flume-ng agent -f /home/ashwin/Eventsim/eventsim-master/event_agent_conf -n eventsim
+
+
+
+HIVE:
+
+create Database
+create table
+    create table json_table(json string);
+LOAD Data from HDFS:
+    LOAD DATA INPATH 'hdfs:/user/eventsim/data/event_t1/16-07-22/FlumeData.*' INTO TABLE json_table;
+
+
+music_table
+music_master
+loc_song
+gender_song
+
+
+
+
+select get_json_object(json_table.json,'$.ts') as ts,get_json_object(json_table.json,'$.userId') as userID,get_json_object(json_table.json,'$.sessionId') as sessionId,get_json_object(json_table.json,'$.status') as status,get_json_object(json_table.json,'$.location') as location,get_json_object(json_table.json,'$.userAgent') as browser,get_json_object(json_table.json,'$.lastName') as lastname,get_json_object(json_table.json,'$.firstName') as firstnamae,get_json_object(json_table.json,'$.registration') as registration,get_json_object(json_table.json,'$.gender') as gender,get_json_object(json_table.json,'$.artist') as artist,get_json_object(json_table.json,'$.song') as song,get_json_object(json_table.json,'$.length') as songlength from json_table where get_json_object(json_table.json,'$.ts') is not null;
+
+
+create table music_table as select get_json_object(json_table.json,'$.ts') as ts,get_json_object(json_table.json,'$.userId') as userId,get_json_object(json_table.json,'$.sessionId') as sessionId,get_json_object(json_table.json,'$.status') as status,get_json_object(json_table.json,'$.location') as location,get_json_object(json_table.json,'$.userAgent') as browser,get_json_object(json_table.json,'$.lastName') as lastname,get_json_object(json_table.json,'$.firstName') as firstnamae,get_json_object(json_table.json,'$.registration') as registration,get_json_object(json_table.json,'$.gender') as gender,get_json_object(json_table.json,'$.artist') as artist,get_json_object(json_table.json,'$.song') as song,get_json_object(json_table.json,'$.length') as songlength from json_table where get_json_object(json_table.json,'$.ts') is not null;
+
+
+
+
+CREATE TABLE music_master AS SELECT from_unixtime(CAST(ts/1000 as BIGINT), 'yyyy-MM-d hh:mm:ss') as date_time,userid,sessionid,status,location,browser,lastname,firstnamae,gender,artist,song,songlength,from_unixtime(CAST(registration/1000 as BIGINT), 'yyyy-MM-d hh:mm:ss') as reg_date FROM music_table WHERE ts IS NOT NULL;
+
+
+
+create table loc_song as select count(*) as song_cnt,location from music_table group by location order by song_cnt desc limit 10;
+
+
+create table gender_song as select gender,count(song) as songcount from music_master group by gender;
+
+
+
+
+
+
+
